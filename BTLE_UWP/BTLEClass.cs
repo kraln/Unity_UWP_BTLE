@@ -33,6 +33,9 @@ namespace BTLEPlugin
 
         GattCharacteristic uart_tx;
         GattCharacteristic uart_rx;
+        string tx_uuid = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E";
+        string rx_uuid = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E";
+        string uart_uuid = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E";
 
         #region debug
         public void SetDebugCallback(DebugType theFunc)
@@ -316,17 +319,49 @@ namespace BTLEPlugin
         /// <summary>
         /// If the device has the Nordic UART service/characteristic, we just skip a bunch of generic stuff and hardwire it because hackathon
         /// </summary>
+        
         public void SetupNordicUart()
         {
             if (!connected)
                 return;
 
-            GattDeviceService nordic_uart_service = ble_dev.GetGattService(new Guid("6e400001-b5a3-f393-e0a9-e50e24dcca9e"));
-            uart_tx = nordic_uart_service.GetCharacteristics(new Guid("6e400002-b5a3-f393-e0a9-e50e24dcca9e"))[0];
-            uart_rx = nordic_uart_service.GetCharacteristics(new Guid("6e400003-b5a3-f393-e0a9-e50e24dcca9e"))[0];
+            try
+            {
 
+            
+            GattDeviceService nordic_uart_service = ble_dev.GetGattService(new Guid(uart_uuid));
+            uart_tx = nordic_uart_service.GetCharacteristics(new Guid(tx_uuid))[0];
+            uart_rx = nordic_uart_service.GetCharacteristics(new Guid(rx_uuid))[0];
+
+            // ???
+            uart_tx.ProtectionLevel = GattProtectionLevel.Plain;
+            uart_rx.ProtectionLevel = GattProtectionLevel.Plain;
+
+        
             uart_rx.ValueChanged += Uart_rx_ValueChanged;
-            Debug("Nordic UART Setup");
+
+            SetupNordicRX().Wait();
+            Debug("Nordic UART Setup Complete!");
+
+            }
+            catch (Exception ex)
+            {
+                Debug("Something bad happened!" + ex);
+            }
+
+        }
+
+        public async Task SetupNordicRX()
+        {
+ 
+
+            var result = await uart_rx.ReadClientCharacteristicConfigurationDescriptorAsync();
+
+            if (result.Status == GattCommunicationStatus.Success
+
+                && result.ClientCharacteristicConfigurationDescriptor != GattClientCharacteristicConfigurationDescriptorValue.Notify)
+
+                await uart_rx.WriteClientCharacteristicConfigurationDescriptorAsync(GattClientCharacteristicConfigurationDescriptorValue.Notify);
 
         }
 
@@ -356,6 +391,17 @@ namespace BTLEPlugin
         /// <param name="stuff"></param>
         public void send(string stuff)
         {
+            try
+            {
+                real_send(stuff).Wait();
+            } catch (Exception ex)
+            {
+                Debug("Caught exception when trying to send: " + ex);
+            }
+        }
+
+        public async Task real_send(string stuff)
+        {
             if (!connected)
                 return;
 
@@ -365,13 +411,11 @@ namespace BTLEPlugin
                 return;
             }
 
+
             var writer = new DataWriter();
             writer.WriteString(stuff);
-            var res = uart_tx.WriteValueAsync(writer.DetachBuffer(), GattWriteOption.WriteWithoutResponse);
-
-        }
-
-     
+            var res = await uart_tx.WriteValueAsync(writer.DetachBuffer(), GattWriteOption.WriteWithResponse);
+        }     
         #endregion
     }
 }
