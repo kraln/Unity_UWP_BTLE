@@ -5,12 +5,17 @@ using System.Text;
 
 namespace BTLEPlugin
 {
+    /* 
+     * This is a dummy class so that Unity can reason about the UWP plugin
+     */
     public class BTLEClass
     {
         public bool paired = false;
         public bool connected = false;
 
         public delegate void DebugType(string s);
+        public delegate void RxType(string rx);
+        protected RxType rxFunc;
         protected DebugType debugFunc;
         #region debug
         public void SetDebugCallback(DebugType theFunc)
@@ -73,29 +78,40 @@ namespace BTLEPlugin
             connected = true;
         }
 
+        public string[] getServices()
+        {
+            if (!connected)
+                return null;
+            return null;
+        }
+
+        public string[] getServicesAndCharacteristics()
+        {
+            return null;
+        }
 #endregion
 
-// pair
+        // pair
 
-#region interaction
-/// <summary>
-/// Send stuff to the bluetooth module
-/// </summary>
-/// <param name="stuff"></param>
-public void send(string stuff)
-        {
-
-        }
-
+        #region interaction
         /// <summary>
-        /// Get stuff from the bluetooth module
+        /// Send stuff to the bluetooth module
         /// </summary>
-        /// <returns></returns>
-        public string recv()
+        /// <param name="stuff"></param>
+        public void send(string stuff)
         {
 
-            return "";
         }
+        public void SetupNordicUart()
+        {
+
+        }
+
+        public void SetRxCallback(RxType theFunc)
+        {
+
+        }
+
         #endregion
     }
 }

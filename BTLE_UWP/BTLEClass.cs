@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Windows.Devices.Bluetooth;
 using Windows.Devices.Enumeration;
 using Windows.Devices.Bluetooth.GenericAttributeProfile;
+using Windows.Storage.Streams;
 
 namespace BTLEPlugin
 {
@@ -27,7 +28,11 @@ namespace BTLEPlugin
         public delegate void DebugType(string s);
         protected DebugType debugFunc;
 
+        public delegate void RxType(string rx);
+        protected RxType rxFunc;
 
+        GattCharacteristic uart_tx;
+        GattCharacteristic uart_rx;
 
         #region debug
         public void SetDebugCallback(DebugType theFunc)
@@ -155,7 +160,10 @@ namespace BTLEPlugin
             {
                 return;
             }
-            
+            if(!paired)
+            {
+                return;
+            }
             busy = true;
             Debug("Connecting!");
             RealConnect(id).Wait();
@@ -166,7 +174,7 @@ namespace BTLEPlugin
         {
             try
             { 
-            ble_dev = await BluetoothLEDevice.FromIdAsync(id);
+                ble_dev = await BluetoothLEDevice.FromIdAsync(id);
             } catch (Exception ex)
             {
                 Debug("Error when connecting: " + ex.ToString());
@@ -182,8 +190,9 @@ namespace BTLEPlugin
                 return;
             }
 
-            Debug("Connected!" + ble_dev.ConnectionStatus);
+            Debug("Connected! " + ble_dev.ConnectionStatus);
             connected = true;
+
             return;
         }
 
@@ -269,11 +278,77 @@ namespace BTLEPlugin
 
         }
 
+        public string[] getServices()
+        {
+            if (!connected)
+                return null;
+
+            List<string> temp = new List<string>();
+
+            foreach (var service in ble_dev.GattServices)
+            {
+                temp.Add(service.AttributeHandle + ": " + service.Uuid);
+            }
+
+            return temp.ToArray<string>();
+        }
+
+        public string[] getServicesAndCharacteristics()
+        {
+            if (!connected)
+                return null;
+            List<string> temp = new List<string>();
+
+            foreach (var service in ble_dev.GattServices)
+            {
+                string serv = service.AttributeHandle + ": " + service.Uuid;
+
+                foreach (var character in service.GetAllCharacteristics())
+                { 
+                    temp.Add(serv + ": " + character.Uuid);
+                }
+            }
+
+            return temp.ToArray<string>();
+        }
+
+  
+        /// <summary>
+        /// If the device has the Nordic UART service/characteristic, we just skip a bunch of generic stuff and hardwire it because hackathon
+        /// </summary>
+        public void SetupNordicUart()
+        {
+            if (!connected)
+                return;
+
+            GattDeviceService nordic_uart_service = ble_dev.GetGattService(new Guid("6e400001-b5a3-f393-e0a9-e50e24dcca9e"));
+            uart_tx = nordic_uart_service.GetCharacteristics(new Guid("6e400002-b5a3-f393-e0a9-e50e24dcca9e"))[0];
+            uart_rx = nordic_uart_service.GetCharacteristics(new Guid("6e400003-b5a3-f393-e0a9-e50e24dcca9e"))[0];
+
+            uart_rx.ValueChanged += Uart_rx_ValueChanged;
+            Debug("Nordic UART Setup");
+
+        }
+
+        private void Uart_rx_ValueChanged(GattCharacteristic sender, GattValueChangedEventArgs args)
+        {
+            Debug("Uart RX Value Changed");
+            if (rxFunc == null)
+            {
+                Debug("Set your RX Callback!"); 
+                return;
+            }
+            DataReader dr = DataReader.FromBuffer(args.CharacteristicValue);
+            rxFunc(dr.ReadString(args.CharacteristicValue.Length));
+        }
+
+        public void SetRxCallback(RxType theFunc)
+        {
+            rxFunc = theFunc;
+        }
 
         #endregion
 
-        // pair
-      
         #region interaction
         /// <summary>
         /// Send stuff to the bluetooth module
@@ -281,18 +356,22 @@ namespace BTLEPlugin
         /// <param name="stuff"></param>
         public void send(string stuff)
         {
+            if (!connected)
+                return;
+
+            if(uart_tx == null)
+            {
+                Debug("Set up the Nordic stuff first!");
+                return;
+            }
+
+            var writer = new DataWriter();
+            writer.WriteString(stuff);
+            var res = uart_tx.WriteValueAsync(writer.DetachBuffer(), GattWriteOption.WriteWithoutResponse);
 
         }
 
-        /// <summary>
-        /// Get stuff from the bluetooth module
-        /// </summary>
-        /// <returns></returns>
-        public string recv()
-        {
-
-            return "";
-        }
+     
         #endregion
     }
 }
