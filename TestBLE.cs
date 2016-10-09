@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using System.Collections;
 using BTLEPlugin;
 
@@ -24,6 +24,7 @@ public class TestBLE : MonoBehaviour
     public void RxBTLE(string s)
     {
         Debug.Log("BTLE said: " + s);
+        btlec.send("" + System.Convert.ToChar(int.Parse(s)));
     }
 
     void OnEnable()
@@ -86,12 +87,23 @@ public class TestBLE : MonoBehaviour
         if (found)
         {
             // we can stop now
-            btlec.StopEnumeration();
+            // btlec.StopEnumeration();
 
             // pair?
             if (!btlec.paired_with(found_addr))
             {
-                btlec.Pair(found_addr);
+                if(btlec.Pair(found_addr))
+                {
+                    Debug.Log("Pair successful, restarting");
+                    btlec = new BTLEClass();
+                    btlec.SetDebugCallback(new BTLEClass.DebugType(DebugLog));
+                    btlec.StartEnumeration();
+                    found = false;
+                    oneshot = false;
+                } else
+                {
+                    Debug.Log("Pair failed.");
+                }
             }
 
             // connect?
@@ -119,16 +131,15 @@ public class TestBLE : MonoBehaviour
                 {
                     Debug.Log(s);
                 }
-                InvokeRepeating("SayHi", 1.0f, 1.0f);
+                //InvokeRepeating("SayHi", 1.0f, 1.0f);
             }
         }
     }
     int i = 1;
     void SayHi()
     {
-        Debug.Log("Sending event");
         btlec.send("" + System.Convert.ToChar(i));
-
+        Debug.Log("You're feeling #" + i);
         i++;
         if(i>117)
         {
