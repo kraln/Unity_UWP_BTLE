@@ -15,34 +15,29 @@ namespace BTLEPlugin
 {
     public class BTLEClass
     {
-        private DeviceWatcher deviceWatcher;
+        // The device we want to pair / connect with
         private BluetoothLEDevice ble_dev;
-        private ObservableCollection<DeviceInformation> devices = new ObservableCollection<DeviceInformation>();
 
-        public bool paired = false;
-        public bool connected = false;
-
-        private bool busy = false;
-
-
+        #region debug
+        
+        // A delegate we can use to send Debugging information out
         public delegate void DebugType(string s);
         protected DebugType debugFunc;
 
-        public delegate void RxType(string rx);
-        protected RxType rxFunc;
+        public bool verbose_debug = false;
 
-        GattCharacteristic uart_tx;
-        GattCharacteristic uart_rx;
-        string tx_uuid = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E";
-        string rx_uuid = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E";
-        string uart_uuid = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E";
-
-        #region debug
         public void SetDebugCallback(DebugType theFunc)
         {
             debugFunc = theFunc;
         }
 
+        protected void VerboseDebug(string what)
+        {
+            if(verbose_debug)
+            {
+                Debug(what);
+            }
+        }
         protected void Debug(string what)
         {
             if (debugFunc == null)
@@ -52,13 +47,20 @@ namespace BTLEPlugin
 
         }
         #endregion
-        #region Setup_and_Enumeration
+
+        #region Discovery
+        // Used for discovering devices
+        private DeviceWatcher deviceWatcher;
+        private ObservableCollection<DeviceInformation> devices = new ObservableCollection<DeviceInformation>();
+
         public void StartEnumeration()
         {
             if (deviceWatcher != null)
                 return;
 
             Debug("Starting device enumeration");
+
+            /* Don't ask me--look at the example from Microsoft */
             string[] requestedProperties = { "System.Devices.Aep.DeviceAddress", "System.Devices.Aep.IsConnected" };
 
             deviceWatcher = DeviceInformation.CreateWatcher(
@@ -83,7 +85,7 @@ namespace BTLEPlugin
             if (deviceWatcher == null)
                 return;
 
-            //UnityEngine.Debug.Log("Stopping device enumeration");
+            Debug("Stopping device enumeration");
             deviceWatcher.Added -= DeviceWatcher_Added;
             deviceWatcher.Updated -= DeviceWatcher_Updated;
             deviceWatcher.Removed -= DeviceWatcher_Removed;
@@ -99,6 +101,10 @@ namespace BTLEPlugin
             devices.Clear();
         }
 
+        /// <summary>
+        /// Get a list of the devices we've seen (so far!)
+        /// </summary>
+        /// <returns>Device Information Ids, as a string[]</returns>
         public String[] DeviceList()
         {
             List<string> temp = new List<string>();
@@ -107,134 +113,32 @@ namespace BTLEPlugin
             {
                 temp.Add(di.Id);
             }
+
             return temp.ToArray<string>();
         }
 
-        /// <summary>
-        /// Try to pair with a device
-        /// </summary>
-        /// <param name="id">the device id (as a string)</param>
-        public void Pair(string id)
-        {
-            if(busy)
-            {
-                return;
-            }
-            busy = true;
-            Debug("Pairing!");
-            RealPair(id).Wait();
-            busy = false;
-        }
-        protected async Task RealPair(string id)
-        {
-            DeviceInformation di = null;
-
-            foreach(DeviceInformation d in devices)
-            {
-                if (d.Id.Equals(id))
-                { 
-                    di = d;
-                    break;
-                }
-            }
-
-            if(di == null)
-            {
-                Debug("Could not find ID to pair with in seen set (did you try scanning?)");
-                paired = false;
-                return;
-            }
-
-            DevicePairingResult dpr = await di.Pairing.PairAsync();
-            Debug("Pairing Status: " + dpr.Status);
-            if (dpr.Status == DevicePairingResultStatus.Paired || dpr.Status == DevicePairingResultStatus.AlreadyPaired)
-            {
-                paired = true;
-                return;
-            }
-
-            paired = false;
-            return;
-        }
-
-        public void Connect(string id)
-        {
-            if (busy)
-            {
-                return;
-            }
-            if(!paired)
-            {
-                return;
-            }
-            busy = true;
-            Debug("Connecting!");
-            RealConnect(id).Wait();
-           
-            busy = false;
-        }
-        public async Task RealConnect(string id)
-        {
-            try
-            { 
-                ble_dev = await BluetoothLEDevice.FromIdAsync(id);
-            } catch (Exception ex)
-            {
-                Debug("Error when connecting: " + ex.ToString());
-                connected = false;
-                return;
-            }
-
-            if (ble_dev == null)
-            {
-                Debug("Connection failed :(");
-                connected = false;
-
-                return;
-            }
-
-            Debug("Connected! " + ble_dev.ConnectionStatus);
-            connected = true;
-
-            return;
-        }
-
         private void DeviceWatcher_Added(DeviceWatcher sender, DeviceInformation deviceInfo)
-
         {
-
             if (sender != deviceWatcher)
                 return;
-
 
             if (deviceInfo.Name != string.Empty && !devices.Contains(deviceInfo))
-
             {
                 devices.Add(deviceInfo);
-
-
             }
-            // Debug("Saw device " + deviceInfo.Id + ", name: " + deviceInfo.Name);
+            VerboseDebug("Saw device " + deviceInfo.Id + ", name: " + deviceInfo.Name);
 
         }
 
-
-
         private void DeviceWatcher_Updated(DeviceWatcher sender, DeviceInformationUpdate deviceInfoUpdate)
-
         {
             if (sender != deviceWatcher)
                 return;
-            // Debug("Saw device (updated)" + deviceInfoUpdate.Id);
-
+            VerboseDebug("Saw device (updated)" + deviceInfoUpdate.Id);
         }
 
-
-
         private void DeviceWatcher_Removed(DeviceWatcher sender, DeviceInformationUpdate deviceInfoUpdate)
-
         {
-
             if (sender != deviceWatcher)
                 return;
 
@@ -249,42 +153,202 @@ namespace BTLEPlugin
             }
 
             if (di_torem != null)
-
             {
                 devices.Remove(di_torem);
-
-
             }
-            // Debug("Lost device " + deviceInfoUpdate.Id);
-
-
+            VerboseDebug("Lost device " + deviceInfoUpdate.Id);
         }
 
-
-
+        // TODO: Provide delegate for this?
         private void DeviceWatcher_EnumerationCompleted(DeviceWatcher sender, object e)
-
         {
-
             Debug("Enumeration complete. " + devices.Count + " devices found.");
-
-
         }
-
-
 
         private void DeviceWatcher_Stopped(DeviceWatcher sender, object e)
-
         {
-
-            Debug("Device enumeration stopped");
-
+            Debug("Device enumeration stopped successfully.");
         }
 
+        #endregion
+
+        #region Pairing
+        protected bool pairing_busy = false;
+
+        /// <summary>
+        /// Try to pair with a device by Id
+        /// </summary>
+        /// <param name="id">the device id (as a string)</param>
+        public bool Pair(string id)
+        {
+            if(pairing_busy)
+            {
+                return false;
+            }
+            pairing_busy = true;
+
+            Debug("Pairing!");
+
+            // Actually attempt to pair
+            bool res = AsyncPair(id).Result;
+
+            pairing_busy = false;
+
+            return res;
+        }
+
+
+        protected async Task<bool> AsyncPair(string id)
+        {
+            DeviceInformation di = null;
+
+            /* 
+             * First look in the set of scanned devices to see if what I am trying to pair with
+             * is actually there
+             * 
+             * XXX: Is this needed?
+             */
+            foreach(DeviceInformation d in devices)
+            {
+                if (d.Id.Equals(id))
+                { 
+                    di = d;
+                    break;
+                }
+            }
+
+            if(di == null)
+            {
+                Debug("Could not find ID to pair with in seen set (did you try scanning?)");
+                return false;
+            }
+
+            /* Actually try to pair */
+            DevicePairingResult dpr = await di.Pairing.PairAsync();
+
+            Debug("Pairing Status: " + dpr.Status);
+
+            if (dpr.Status == DevicePairingResultStatus.Paired || dpr.Status == DevicePairingResultStatus.AlreadyPaired)
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        public bool paired_with(string id)
+        {
+            /* Check to see if we asked to connect to a device which we are already paired with */
+
+            // This doesn't work. Can I not do this to check if I am paired?
+            // DeviceInformation di = DeviceInformation.CreateFromIdAsync(id).GetResults();
+
+            DeviceInformation di = null;
+            foreach (DeviceInformation d in devices)
+            {
+                if (d.Id.Equals(id))
+                {
+                    di = d;
+                    break;
+                }
+            }
+
+            if (di != null && !di.Pairing.IsPaired)
+            {
+                Debug("Asked to connect to a device we are not paired with.");
+                return false;
+            }
+            return true;
+        }
+        #endregion
+
+        #region Connecting
+        protected bool connecting_busy = false;
+
+        /// <summary>
+        /// Try to pair with a device by Id
+        /// </summary>
+        /// <param name="id">the device id (as a string)</param>
+        public void Connect(string id)
+        {
+            if (connecting_busy)
+            {
+                return;
+            }
+
+            /* Check to see if we asked to connect to a device which we are already paired with */
+            if (!paired_with(id))
+            {
+                Debug("Asked to connect to a device we are not paired with.");
+                return;
+            }
+
+            connecting_busy = true;
+
+            Debug("Connecting!");
+            AsyncConnect(id).Wait();
+
+            connecting_busy = false;
+        }
+
+        public async Task AsyncConnect(string id)
+        {
+            try
+            { 
+                ble_dev = await BluetoothLEDevice.FromIdAsync(id);
+            }
+            catch (Exception ex)
+            {
+                Debug("Error when connecting: " + ex.ToString());
+                return;
+            }
+
+            if (ble_dev == null)
+            {
+                Debug("Connection failed :(");
+                return;
+            }
+
+            // we're not sure how long this takes, but don't try for more than 5 seconds
+
+            var start_ts = DateTime.Now;
+            TimeSpan diff = new TimeSpan(0, 0, 0);
+            
+            while (ble_dev.ConnectionStatus != BluetoothConnectionStatus.Connected && diff.Seconds < 5)
+            {
+                diff = DateTime.Now.Subtract(start_ts);
+                await Task.Delay(50);
+            }
+            
+            Debug("Connection Result: " + ble_dev.ConnectionStatus);
+        }
+
+        /// <summary>
+        /// Is the current ble_device valid, and is it connected?
+        /// </summary>
+        public bool am_connected()
+        {
+            if(ble_dev == null)
+            {
+                return false;
+            }
+
+            if(ble_dev.ConnectionStatus == BluetoothConnectionStatus.Connected)
+            {
+                return true;
+            }
+
+            return false;
+        }
+        #endregion
+        #region Services
         public string[] getServices()
         {
-            if (!connected)
+            if (!am_connected())
+            {
+                VerboseDebug("Not connected, cowardly refusing to list services");
                 return null;
+            }
 
             List<string> temp = new List<string>();
 
@@ -298,8 +362,12 @@ namespace BTLEPlugin
 
         public string[] getServicesAndCharacteristics()
         {
-            if (!connected)
+            if (!am_connected())
+            {
+                VerboseDebug("Not connected, cowardly refusing to list services");
                 return null;
+            }
+
             List<string> temp = new List<string>();
 
             foreach (var service in ble_dev.GattServices)
@@ -315,34 +383,51 @@ namespace BTLEPlugin
             return temp.ToArray<string>();
         }
 
-  
+        #endregion
+        #region NordicUART
+        // Stuff for the nRF UART Service and Characteristics
+
+        // A delegate for the NRF RX Characteristic
+        public delegate void RxType(string rx);
+        protected RxType rxFunc;
+
+        GattCharacteristic uart_tx;
+        GattCharacteristic uart_rx;
+
+        // These are "Randomly defined" and correspond to the nRF UART Services
+        string tx_uuid = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E";
+        string rx_uuid = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E";
+        string uart_uuid = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E";
+
         /// <summary>
         /// If the device has the Nordic UART service/characteristic, we just skip a bunch of generic stuff and hardwire it because hackathon
         /// </summary>
-        
         public void SetupNordicUart()
         {
-            if (!connected)
+            if (!am_connected())
+            {
+                VerboseDebug("Not connected, cowardly refusing to create characteristics");
                 return;
+            }
 
             try
             {
+                // hope they're there...
+                GattDeviceService nordic_uart_service = ble_dev.GetGattService(new Guid(uart_uuid));
+                uart_tx = nordic_uart_service.GetCharacteristics(new Guid(tx_uuid))[0];
+                uart_rx = nordic_uart_service.GetCharacteristics(new Guid(rx_uuid))[0];
 
-            
-            GattDeviceService nordic_uart_service = ble_dev.GetGattService(new Guid(uart_uuid));
-            uart_tx = nordic_uart_service.GetCharacteristics(new Guid(tx_uuid))[0];
-            uart_rx = nordic_uart_service.GetCharacteristics(new Guid(rx_uuid))[0];
+                // Disable encryption because apparently it helps sometimes
+                uart_tx.ProtectionLevel = GattProtectionLevel.Plain;
+                uart_rx.ProtectionLevel = GattProtectionLevel.Plain;
 
-            // ???
-            uart_tx.ProtectionLevel = GattProtectionLevel.Plain;
-            uart_rx.ProtectionLevel = GattProtectionLevel.Plain;
+                // set a call back for the notifier
+                uart_rx.ValueChanged += Uart_rx_ValueChanged;
 
-        
-            uart_rx.ValueChanged += Uart_rx_ValueChanged;
+                // tell the system we want the callback
+                SetupNordicRX().Wait();
 
-            SetupNordicRX().Wait();
-            Debug("Nordic UART Setup Complete!");
-
+                Debug("Nordic UART Setup Complete!");
             }
             catch (Exception ex)
             {
@@ -351,23 +436,21 @@ namespace BTLEPlugin
 
         }
 
+        // Set up the notifier on the RX path, if needed.
         public async Task SetupNordicRX()
         {
- 
-
             var result = await uart_rx.ReadClientCharacteristicConfigurationDescriptorAsync();
-
-            if (result.Status == GattCommunicationStatus.Success
-
-                && result.ClientCharacteristicConfigurationDescriptor != GattClientCharacteristicConfigurationDescriptorValue.Notify)
-
+            if (result.Status == GattCommunicationStatus.Success &&
+                result.ClientCharacteristicConfigurationDescriptor != GattClientCharacteristicConfigurationDescriptorValue.Notify)
+            { 
                 await uart_rx.WriteClientCharacteristicConfigurationDescriptorAsync(GattClientCharacteristicConfigurationDescriptorValue.Notify);
-
+            }
         }
 
+        // the callback
         private void Uart_rx_ValueChanged(GattCharacteristic sender, GattValueChangedEventArgs args)
         {
-            Debug("Uart RX Value Changed");
+            VerboseDebug("Uart RX Value Changed");
             if (rxFunc == null)
             {
                 Debug("Set your RX Callback!"); 
@@ -377,24 +460,25 @@ namespace BTLEPlugin
             rxFunc(dr.ReadString(args.CharacteristicValue.Length));
         }
 
+        // set callback
         public void SetRxCallback(RxType theFunc)
         {
             rxFunc = theFunc;
         }
-
         #endregion
 
         #region interaction
         /// <summary>
         /// Send stuff to the bluetooth module
         /// </summary>
-        /// <param name="stuff"></param>
+        /// <param name="stuff">what to send</param>
         public void send(string stuff)
         {
             try
             {
                 real_send(stuff).Wait();
-            } catch (Exception ex)
+            }
+            catch (Exception ex)
             {
                 Debug("Caught exception when trying to send: " + ex);
             }
@@ -402,16 +486,19 @@ namespace BTLEPlugin
 
         public async Task real_send(string stuff)
         {
-            if (!connected)
+            if (!am_connected())
+            {
+                VerboseDebug("Not connected, cowardly refusing to send");
                 return;
+            }
 
-            if(uart_tx == null)
+            if (uart_tx == null)
             {
                 Debug("Set up the Nordic stuff first!");
                 return;
             }
 
-
+            // TODO: Check that uart_tx is valid
             var writer = new DataWriter();
             writer.WriteString(stuff);
             var res = await uart_tx.WriteValueAsync(writer.DetachBuffer(), GattWriteOption.WriteWithResponse);

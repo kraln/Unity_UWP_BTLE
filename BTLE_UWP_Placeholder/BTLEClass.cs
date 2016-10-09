@@ -10,29 +10,21 @@ namespace BTLEPlugin
      */
     public class BTLEClass
     {
-        public bool paired = false;
-        public bool connected = false;
-
         public delegate void DebugType(string s);
         public delegate void RxType(string rx);
         protected RxType rxFunc;
         protected DebugType debugFunc;
-        #region debug
         public void SetDebugCallback(DebugType theFunc)
         {
             debugFunc = theFunc;
         }
-
         protected void Debug(string what)
         {
             if (debugFunc == null)
                 return;
 
             debugFunc(what);
-
         }
-        #endregion
-        #region Setup_and_Enumeration
         public void StartEnumeration()
         {
             Debug("Starting enumeration (placeholder)");
@@ -41,77 +33,58 @@ namespace BTLEPlugin
         public void StopEnumeration()
         {
             Debug("Stopping enumeration (placeholder)");
-
         }
-
-
-        // XXX
         public void ClearSeenDevices()
         {
             Debug("Clearing seen devices");
         }
-
-        // XXX
         public String[] DeviceList()
         {
-            List<string> temp = new List<String>();
-
-       
-            return temp.ToArray<string>();
+            Debug("Device list");
+            return null;
         }
-
-        // xxx
-        /// <summary>
-        /// Try to pair with a device
-        /// </summary>
-        /// <param name="id">the device id (as a string)</param>
-        public void Pair(string id)
+        
+        public bool Pair(string id)
         {
             Debug("BTLE Pairing (faked)");
-            paired = true;
+            return false;
         }
-        // xxx
+        public bool paired_with(string id)
+        {
+            Debug("Paried with");
+            return false;
+        }
         public void Connect(string id)
         {
             Debug("BTLE Connecting (faked)");
-
-            connected = true;
         }
-
+        public bool am_connected()
+        {
+            Debug("Am connected");
+            return false;
+        }
         public string[] getServices()
         {
-            if (!connected)
-                return null;
+            Debug("Services");
             return null;
         }
 
         public string[] getServicesAndCharacteristics()
         {
+            Debug("Services and chars");
             return null;
         }
-#endregion
-
-        // pair
-
-        #region interaction
-        /// <summary>
-        /// Send stuff to the bluetooth module
-        /// </summary>
-        /// <param name="stuff"></param>
         public void send(string stuff)
         {
-
+            Debug("Send: " + stuff);
         }
         public void SetupNordicUart()
         {
-
+            Debug("Nordic Setup");
         }
-
         public void SetRxCallback(RxType theFunc)
         {
-
+            Debug("Set callback");
         }
-
-        #endregion
     }
 }
