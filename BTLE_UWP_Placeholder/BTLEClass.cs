@@ -14,6 +14,9 @@ namespace BTLEPlugin
         public delegate void RxType(string rx);
         protected RxType rxFunc;
         protected DebugType debugFunc;
+        public bool nordic_setup_properly = false;
+        public bool verbose_debug = false;
+
         public void SetDebugCallback(DebugType theFunc)
         {
             debugFunc = theFunc;

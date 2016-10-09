@@ -109,11 +109,17 @@ namespace BTLEPlugin
         {
             List<string> temp = new List<string>();
 
-            foreach(DeviceInformation di in devices)
-            {
-                temp.Add(di.Id);
+            try
+            { 
+                foreach(DeviceInformation di in devices)
+                {
+                    temp.Add(di.Id);
+                }
             }
-
+            catch (Exception ex)
+            {
+                Debug("Issue iterating over devices (likely was modified)");
+            }
             return temp.ToArray<string>();
         }
 
@@ -399,6 +405,7 @@ namespace BTLEPlugin
         string rx_uuid = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E";
         string uart_uuid = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E";
 
+        public bool nordic_setup_properly = false; // kill me
         /// <summary>
         /// If the device has the Nordic UART service/characteristic, we just skip a bunch of generic stuff and hardwire it because hackathon
         /// </summary>
@@ -410,29 +417,78 @@ namespace BTLEPlugin
                 return;
             }
 
+        
+            // TODO: Keep list of services, and check against that list 
+            // Check to make sure the Nordic service is available
+
+            bool available = false;
+            GattDeviceService nordic_uart_service = null;
+            IReadOnlyList<GattCharacteristic> characteristicList;
+            foreach (GattDeviceService gds in ble_dev.GattServices)
+            {
+                if (gds.Uuid.Equals(new Guid(uart_uuid)))
+                {
+                    available = true;
+                    nordic_uart_service = gds;
+                    break;
+                }
+            }
+
+            if (!available)
+            {
+                Debug("Service unavailable, try again later");
+            }
+
+            characteristicList = nordic_uart_service.GetCharacteristics(new Guid(tx_uuid));
+            if(characteristicList == null)
+            {
+                Debug("Null characteristic list for TX... try later");
+            }
+            // null check not good enough. (example: https://github.com/ms-iot/samples/blob/develop/BluetoothGATT/CS/MainPage.xaml.cs is bad)
             try
             {
-                // hope they're there...
-                GattDeviceService nordic_uart_service = ble_dev.GetGattService(new Guid(uart_uuid));
-                uart_tx = nordic_uart_service.GetCharacteristics(new Guid(tx_uuid))[0];
-                uart_rx = nordic_uart_service.GetCharacteristics(new Guid(rx_uuid))[0];
+                uart_tx = characteristicList[0];
+            } 
+            catch (Exception ex)
+            {
+                Debug("Problem getting TX Characteristic");
+                return;
+            }
 
-                // Disable encryption because apparently it helps sometimes
-                uart_tx.ProtectionLevel = GattProtectionLevel.Plain;
-                uart_rx.ProtectionLevel = GattProtectionLevel.Plain;
-
-                // set a call back for the notifier
-                uart_rx.ValueChanged += Uart_rx_ValueChanged;
-
-                // tell the system we want the callback
-                SetupNordicRX().Wait();
-
-                Debug("Nordic UART Setup Complete!");
+            characteristicList = nordic_uart_service.GetCharacteristics(new Guid(rx_uuid));
+            if (characteristicList == null)
+            {
+                Debug("Null characteristic list for RX... try later");
+            }
+            try
+            {
+                uart_rx = characteristicList[0];
             }
             catch (Exception ex)
             {
-                Debug("Something bad happened!" + ex);
+                Debug("Problem getting RX Characteristic");
+                return;
             }
+            // Disable encryption because apparently it helps sometimes
+            uart_tx.ProtectionLevel = GattProtectionLevel.Plain;
+            uart_rx.ProtectionLevel = GattProtectionLevel.Plain;
+
+            // set a call back for the notifier
+            uart_rx.ValueChanged += Uart_rx_ValueChanged;
+
+            // tell the system we want the callback
+            try
+            {
+                SetupNordicRX().Wait();
+            }
+            catch (Exception ex)
+            {
+                Debug("Issue registering for callback (we'll try anyway)");
+            }
+
+
+            nordic_setup_properly = true;
+            Debug("Nordic UART Setup Complete!");
 
         }
 
