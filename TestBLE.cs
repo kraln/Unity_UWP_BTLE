@@ -6,10 +6,10 @@ public class TestBLE : MonoBehaviour
 {
 
     const string Addr_Laptop = "BluetoothLE#BluetoothLE34:02:86:4b:42:fd-e4:83:bb:53:22:23";
-    const string Addr_Holo = "BluetoothLE#BluetoothLEb4:ae:2b:be:fc:09-e4:83:bb:53:22:23";
+    const string Addr_Holo =   "BluetoothLE#BluetoothLEb4:ae:2b:be:fc:09-e4:83:bb:53:22:23";
 
     const string Addr_Laptop2 = "BluetoothLE#BluetoothLE34:02:86:4b:42:fd-ec:01:c8:69:a6:1a";
-    const string Addr_Holo2 = "BluetoothLE#BluetoothLEb4:ae:2b:be:fc:09-ec:01:c8:69:a6:1a";
+    const string Addr_Holo2 =   "BluetoothLE#BluetoothLEb4:ae:2b:be:fc:09-ec:01:c8:69:a6:1a";
 
     string found_addr = "";
     BTLEClass btlec = new BTLEClass();
@@ -95,28 +95,33 @@ public class TestBLE : MonoBehaviour
             }
 
             // connect?
-            if (btlec.paired_with(found_addr) && !btlec.am_connected())
+            if (!btlec.am_connected())
             {
                 btlec.Connect(found_addr);
             }
-        }
 
-        if (btlec.am_connected() && !oneshot)
-        {
-            oneshot = true;
-
-            // this is hacky and I love it.
-            btlec.SetRxCallback(new BTLEClass.RxType(RxBTLE));
-            btlec.SetupNordicUart();
-
-            Debug.Log("Services:");
-            foreach (string s in btlec.getServices())
+            // nordic / characteristics?
+            if (btlec.am_connected() && !btlec.nordic_setup_properly)
             {
-                Debug.Log(s);
+                btlec.SetupNordicUart();
             }
-            InvokeRepeating("SayHi", 1.0f, 1.0f);
-        }
 
+            // one-shot?
+            if (btlec.am_connected() && btlec.nordic_setup_properly && !oneshot)
+            {
+                oneshot = true;
+
+                // this is hacky and I love it.
+                btlec.SetRxCallback(new BTLEClass.RxType(RxBTLE));
+
+                Debug.Log("Services:");
+                foreach (string s in btlec.getServices())
+                {
+                    Debug.Log(s);
+                }
+                InvokeRepeating("SayHi", 1.0f, 1.0f);
+            }
+        }
     }
     int i = 1;
     void SayHi()
@@ -125,7 +130,7 @@ public class TestBLE : MonoBehaviour
         btlec.send("" + System.Convert.ToChar(i));
 
         i++;
-        if (i > 117)
+        if(i>117)
         {
             i = 1;
         }
