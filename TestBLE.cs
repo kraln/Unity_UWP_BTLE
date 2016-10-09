@@ -7,6 +7,10 @@ public class TestBLE : MonoBehaviour
 
     const string Addr_Laptop = "BluetoothLE#BluetoothLE34:02:86:4b:42:fd-e4:83:bb:53:22:23";
     const string Addr_Holo = "BluetoothLE#BluetoothLEb4:ae:2b:be:fc:09-e4:83:bb:53:22:23";
+
+    const string Addr_Laptop2 = "BluetoothLE#BluetoothLE34:02:86:4b:42:fd-ec:01:c8:69:a6:1a";
+    const string Addr_Holo2 = "BluetoothLE#BluetoothLEb4:ae:2b:be:fc:09-ec:01:c8:69:a6:1a";
+
     string found_addr = "";
     BTLEClass btlec = new BTLEClass();
     bool found = false;
@@ -60,24 +64,44 @@ public class TestBLE : MonoBehaviour
                     found_addr = Addr_Laptop;
                     break;
                 }
+                if (s.Equals(Addr_Holo2))
+                {
+                    Debug.Log("Found 2nd Adafruit Dongle!");
+
+                    found = true;
+                    found_addr = Addr_Holo2;
+                    break;
+                }
+                if (s.Equals(Addr_Laptop2))
+                {
+                    Debug.Log("Found 2nd Adafruit Dongle! (You're on your laptop)");
+
+                    found = true;
+                    found_addr = Addr_Laptop2;
+                    break;
+                }
             }
         }
 
         if (found)
         {
+            // we can stop now
+            btlec.StopEnumeration();
+
             // pair?
-            if (!btlec.paired)
+            if (!btlec.paired_with(found_addr))
             {
                 btlec.Pair(found_addr);
             }
+
             // connect?
-            if (btlec.paired && !btlec.connected)
+            if (btlec.paired_with(found_addr) && !btlec.am_connected())
             {
                 btlec.Connect(found_addr);
             }
         }
 
-        if(btlec.connected && !oneshot)
+        if (btlec.am_connected() && !oneshot)
         {
             oneshot = true;
 
@@ -86,7 +110,7 @@ public class TestBLE : MonoBehaviour
             btlec.SetupNordicUart();
 
             Debug.Log("Services:");
-            foreach(string s in btlec.getServices())
+            foreach (string s in btlec.getServices())
             {
                 Debug.Log(s);
             }
@@ -94,10 +118,16 @@ public class TestBLE : MonoBehaviour
         }
 
     }
-
+    int i = 1;
     void SayHi()
     {
-        Debug.Log("Saying hi!");
-        btlec.send("Hi!\n");
+        Debug.Log("Sending event");
+        btlec.send("" + System.Convert.ToChar(i));
+
+        i++;
+        if (i > 117)
+        {
+            i = 1;
+        }
     }
 }
