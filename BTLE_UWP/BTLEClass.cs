@@ -258,14 +258,20 @@ namespace BTLEPlugin
                     break;
                 }
             }
-
-            if (di != null && !di.Pairing.IsPaired)
+            if(di == null)
             {
-                Debug("Asked to connect to a device we are not paired with.");
+                Debug("Asked pairing status for a device I don't know");
                 return false;
+
             }
-            return true;
+
+            if (di.Pairing.IsPaired)
+            {
+                return true;
+            }
+            return false; 
         }
+
         #endregion
 
         #region Connecting
