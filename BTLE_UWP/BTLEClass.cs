@@ -440,9 +440,10 @@ namespace BTLEPlugin
                 }
             }
 
-            if (!available)
+            if (!available || nordic_uart_service == null)
             {
                 Debug("Service unavailable, try again later");
+                return;
             }
 
             characteristicList = nordic_uart_service.GetCharacteristics(new Guid(tx_uuid));
